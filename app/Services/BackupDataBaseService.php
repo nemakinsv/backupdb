@@ -7,14 +7,30 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
+/**
+ * Сервис для бекапа базы данных при помощи sql запросов
+*/
 class BackupDataBaseService
 {
-
+    /**массив данных по таблицам. Структура:
+     * $arrayTables[$tableName]["created"] => true -флаг сделана запись создание таблицы,
+     * $arrayTables[$tableName]["processed"] => true - все данные по таблицыданные внесены в скрипт sql,
+     * $arrayTables[$tableName]["countRows"] => $countRows - количество записей в таблице,
+     * $arrayTables[$tableName]["countRowsProcessed"] => 0 - количество строк внесенных в скрипт sql;
+    */
     private $arrayTables;
+    //текст скрипта sql
     private $output;
-    private $timeStartRestoreFromSession;
+    //время начало работы скрипта / время работы после редиректа на самого себя и выгрузки из сессии
+    public $timeStartRestoreFromSession;
+    //имя файла выгрузки sql из стороджа
     private $fileName;
-
+    /**
+     * Анализ таблиц в базе данных,
+     * занисение их структуру,
+     * регистрация кол-ва в них строк
+     * формирование директив обработки запросов
+    */
     public function analysisTables()
     {
         $queryTables = 'SHOW TABLES';
@@ -40,7 +56,10 @@ class BackupDataBaseService
         $this->timeStartRestoreFromSession = new DateTime();
 
     }
-
+    /**
+     * единовременная блокировка таблиц с режимом READ
+     * регистрация ошибки, если блокировка не доступна
+    */
     public function lockTables()
     {
         $queryLock = "LOCK TABLES ";
@@ -60,7 +79,10 @@ class BackupDataBaseService
         }
 
     }
-
+    /**
+     * добавление записи в sql скрипт удаления таблицы $tableName , и ее создание
+     * регистрация в структуре о том, что есть запись о создании таблицы
+    */
     public function createTable($tableName)
     {
         $this->output .= "DROP TABLE IF EXISTS `$tableName`;" . PHP_EOL;
@@ -71,7 +93,11 @@ class BackupDataBaseService
         $this->arrayTables[$tableName]["created"] = true;
 
     }
-
+    /**
+     * внесении части данных в скрипт по таблице $tableName,
+     * кол-во строк ограничивается параметром $portion
+     * берутся строки из таблицы начиная с уже обработанной части
+    */
     public function processPortionTable($tableName, $portion)
     {
         $countRowsProcess = $this->arrayTables[$tableName]["countRowsProcessed"];
@@ -101,7 +127,11 @@ class BackupDataBaseService
             $this->arrayTables[$tableName]["processed"] = true;
         }
     }
-
+    /**
+     * Завершение коммита
+     * разблокировка таблиц
+     * выгрузка файла скрипта в сторедж
+    */
     public function finish()
     {
         $this->output .= PHP_EOL . PHP_EOL;
@@ -111,24 +141,32 @@ class BackupDataBaseService
         Storage::disk('local')->put($fileName, $this->output);
         $this->fileName = $fileName;
     }
-
+    /**
+     * возвращает true если все данные по таблице $tableName  внесены в скрипт
+    */
     public function getFlagProcessedTable($tableName)
     {
         return $this->arrayTables[$tableName]["processed"];
     }
-
+    /**
+     * возвращает время работы от начала редиректа / запуска до текущего момента в секундах
+    */
     public function getWorkingTime()
     {
         $currentTime = new DateTime();
         $difference = ($currentTime->diff($this->timeStartRestoreFromSession))->s;
         return (int)$difference;
     }
-
+    /**
+     * возвращает имя файла в стородже
+    */
     public function getFileName()
     {
         return $this->fileName;
     }
-
+    /**
+     * возвращает массив структцры таблиц
+    */
     public function getTables()
     {
         return $this->arrayTables;

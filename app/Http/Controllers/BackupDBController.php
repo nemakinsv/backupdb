@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Storage;
 
 class BackupDBController extends Controller
 {
-
+    /**
+     * выполняет бекап базы данных казанной в env
+    */
     public function backup(Request $request)
     {
         $sessionKeyOldBackupDB = $request->get('sessionKeyBackupDB');
@@ -17,23 +19,21 @@ class BackupDBController extends Controller
             $backupDB = new BackupDataBaseService();
             $backupDB->analysisTables();
             $backupDB->lockTables();
-        }
-        else {
+        } else {
             $backupDB = session($sessionKeyOldBackupDB);
-            if (!$backupDB){
+            if (!$backupDB) {
                 return view('output', ["output" => "Ошибка, нет в сессии backupDB " . $sessionKeyOldBackupDB]);
             }
             $backupDB->timeStartRestoreFromSession = new DateTime();
         }
-        foreach($backupDB->getTables() as $tableName => $table) {
-            if(!$table["created"]){
+        foreach ($backupDB->getTables() as $tableName => $table) {
+            if (!$table["created"]) {
                 $backupDB->createTable($tableName);
             }
-            while (!$backupDB->getFlagProcessedTable($tableName)){
-                $backupDB->processPortionTable($tableName, 200);
-                //sleep(2);
-                if ($backupDB->getWorkingTime() > 10){
-                    $sessionKeyBackupDB = 'backupDB'.time();
+            while (!$backupDB->getFlagProcessedTable($tableName)) {
+                $backupDB->processPortionTable($tableName, 500);
+                if ($backupDB->getWorkingTime() > 20) {
+                    $sessionKeyBackupDB = 'backupDB' . time();
                     session([$sessionKeyBackupDB => $backupDB]);
                     if ($sessionKeyOldBackupDB) {
                         $request->session()->forget($sessionKeyOldBackupDB);
