@@ -25,7 +25,7 @@ class BackupDBController extends Controller
             }
             $backupDB->timeStartRestoreFromSession = new DateTime();
         }
-        foreach($backupDB->arrayTables as $tableName => $table) {
+        foreach($backupDB->getTables() as $tableName => $table) {
             if(!$table["created"]){
                 $backupDB->createTable($tableName);
             }
@@ -44,6 +44,6 @@ class BackupDBController extends Controller
         }
         $backupDB->finish();
         $request->session()->forget($sessionKeyOldBackupDB);
-        return Storage::download($backupDB->fileName);
+        return Storage::download($backupDB->getFileName());
     }
 }
