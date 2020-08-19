@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 class BackupDBController extends Controller
 {
     /**
-     * выполняет бекап базы данных указанной в env
+     * выполняет бекап базы данных, указанной в env
     */
     public function backup(Request $request)
     {
