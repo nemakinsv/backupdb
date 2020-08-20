@@ -26,7 +26,7 @@ class BackupDBController extends Controller
                 return view('output', ["output" => "блокировка не доступна"]);
         }
         foreach ($backupDB->getTables() as $tableName => $table) {
-            if (!$table["created"]) {
+            if (!$backupDB->getFlagTableCreated($tableName)) {
                 $backupDB->createTable($tableName);
             }
             while (!$backupDB->getFlagProcessedTable($tableName)) {

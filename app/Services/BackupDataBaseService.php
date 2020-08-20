@@ -199,5 +199,10 @@ class BackupDataBaseService
         return $fileNameBackupDB;
     }
 
+    public function getFlagTableCreated($tableName)
+    {
+        return $this->arrayTables[$tableName]["created"];
+    }
+
 
 }
