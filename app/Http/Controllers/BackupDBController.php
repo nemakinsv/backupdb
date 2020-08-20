@@ -14,36 +14,30 @@ class BackupDBController extends Controller
     */
     public function backup(Request $request)
     {
-        $sessionKeyOldBackupDB = $request->get('sessionKeyBackupDB');
-        if (!$sessionKeyOldBackupDB) {
+        $fileNameOldBackupDB = $request->get('fileNameBackupDB');
+        if ($fileNameOldBackupDB) {
+            $backupDB = new BackupDataBaseService();
+            $backupDB->restoreFromFile($fileNameOldBackupDB);
+        } else {
             $backupDB = new BackupDataBaseService();
             $backupDB->analysisTables();
-            $backupDB->lockTables();
-        } else {
-            $backupDB = session($sessionKeyOldBackupDB);
-            if (!$backupDB) {
-                return view('output', ["output" => "Ошибка, нет в сессии backupDB " . $sessionKeyOldBackupDB]);
-            }
-            $backupDB->timeStartRestoreFromSession = new DateTime();
+            $result = $backupDB->lockTables();
+            if(!$result)
+                return view('output', ["output" => "блокировка не доступна"]);
         }
         foreach ($backupDB->getTables() as $tableName => $table) {
             if (!$table["created"]) {
                 $backupDB->createTable($tableName);
             }
             while (!$backupDB->getFlagProcessedTable($tableName)) {
-                $backupDB->processPortionTable($tableName, 500);
+                $backupDB->processPortionTable($tableName, 1000);
                 if ($backupDB->getWorkingTime() > 20) {
-                    $sessionKeyBackupDB = 'backupDB' . time();
-                    session([$sessionKeyBackupDB => $backupDB]);
-                    if ($sessionKeyOldBackupDB) {
-                        $request->session()->forget($sessionKeyOldBackupDB);
-                    }
-                    return redirect()->route('backupdb', ['sessionKeyBackupDB' => $sessionKeyBackupDB]);
+                    $fileNameBackupDB = $backupDB->saveToFile();
+                    return redirect()->route('backupdb', ['fileNameBackupDB' => $fileNameBackupDB]);
                 }
             }
         }
         $backupDB->finish();
-        $request->session()->forget($sessionKeyOldBackupDB);
         return Storage::download($backupDB->getFileName());
     }
 }

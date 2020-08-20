@@ -21,13 +21,13 @@ class BackupDataBaseService
     private $arrayTables;
     //текст скрипта sql
     private $output;
-    //время начало работы скрипта / время работы после редиректа на самого себя и выгрузки из сессии
-    public $timeStartRestoreFromSession;
+    //время начало работы скрипта / время работы после редиректа на самого себя
+    private $timeStartRestore;
     //имя файла выгрузки sql из стороджа
     private $fileName;
     /**
      * Анализ таблиц в базе данных,
-     * занисение их структуру,
+     * занисение их в структуру,
      * регистрация кол-ва в них строк
      * формирование директив обработки запросов
     */
@@ -53,11 +53,12 @@ class BackupDataBaseService
         $this->output .= "SET foreign_key_checks = 0;" . PHP_EOL;
         $this->output .= "SET AUTOCOMMIT = 0;" . PHP_EOL;
         $this->output .= "START TRANSACTION;" . PHP_EOL;
-        $this->timeStartRestoreFromSession = new DateTime();
+        $this->timeStartRestore = new DateTime();
 
     }
     /**
      * единовременная блокировка таблиц с режимом READ
+     * возвращает true при успешной блокировке
      * регистрация ошибки, если блокировка не доступна
     */
     public function lockTables()
@@ -73,6 +74,7 @@ class BackupDataBaseService
         $queryLock .= ";";
         try {
             DB::connection()->getPdo()->exec($queryLock);
+            return true;
         } catch (Throwable $e) {
             report($e);
             return false;
@@ -141,9 +143,7 @@ class BackupDataBaseService
         Storage::disk('local')->put($fileName, $this->output);
         $this->fileName = $fileName;
     }
-    /**
-     * возвращает true если все данные по таблице $tableName  внесены в скрипт
-    */
+
     public function getFlagProcessedTable($tableName)
     {
         return $this->arrayTables[$tableName]["processed"];
@@ -154,7 +154,7 @@ class BackupDataBaseService
     public function getWorkingTime()
     {
         $currentTime = new DateTime();
-        $difference = ($currentTime->diff($this->timeStartRestoreFromSession))->s;
+        $difference = ($currentTime->diff($this->timeStartRestore))->s;
         return (int)$difference;
     }
     /**
@@ -171,4 +171,33 @@ class BackupDataBaseService
     {
         return $this->arrayTables;
     }
+    /**
+     * Восстанваливает состояние структуры таблиц и скрипта sql из файлов
+     * при установленном $debug = true файлы не удаляются
+    */
+    public function restoreFromFile($fileName)
+    {
+        $debug = false;
+        $this->timeStartRestore = new DateTime();
+        $contents = Storage::get($fileName);
+        $this->arrayTables = json_decode($contents, true);
+        $this->output = Storage::get($fileName."_output");
+        if (!$debug){
+            Storage::delete($fileName);
+            Storage::delete($fileName."_output");
+        }
+        return true;
+    }
+    /**
+     * Сохраняет состояние структуры таблиц и скрипта sql в файлы
+    */
+    public function saveToFile()
+    {
+        $fileNameBackupDB = 'backupDB' . time();
+        Storage::disk('local')->put($fileNameBackupDB, json_encode($this->arrayTables));
+        Storage::disk('local')->put($fileNameBackupDB."_output", $this->output);
+        return $fileNameBackupDB;
+    }
+
+
 }
